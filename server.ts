@@ -47,7 +47,7 @@ server.get(`/feature`, async (req: Request, res: Response) => {
   const featureName = queryParam.featureName;
 
   console.log(
-    `Call made to get permissions for /feature. Queries passed in:\nemail: "${email}"\nfeatureName: "${featureName}"`
+    `Call made to get permissions for /feature. Request parameters passed in:\nemail: "${email}"\nfeatureName: "${featureName}"`
   );
   console.log(
     `Attempting to find user profile and associated permissions for ${email}`
@@ -91,79 +91,82 @@ server.post(
       enable == "${enable}"\n`
     );
 
-    const existingUserProfile = await UserPermissions.findOne({
-      email: email,
-    });
-    if (_.isEmpty(existingUserProfile)) {
-      console.log(
-        `UserProfile for input email ${email} is not present, create a new userProfile`
-      );
-      const userProfile = await UserPermissions.create({
+    try {
+      const existingUserProfile = await UserPermissions.findOne({
         email: email,
-        permissions: [
-          {
-            featureName: featureName,
-            canAccess: enable,
-          },
-        ],
       });
-    } else {
-      console.log(
-        `userProfile for input email is present, examining associated permissions`
-      );
-
-      const existingUserPermissions = existingUserProfile.permissions.map(
-        (permission) => permission.featureName
-      );
-      console.log(
-        `existingUserPermissions: ${JSON.stringify(
-          existingUserPermissions,
-          null,
-          2
-        )}`
-      );
-
-      for (let i = 0; i < existingUserPermissions.length; ++i) {
-        if (!existingUserPermissions.includes(featureName)) {
-          console.log(
-            `Permission does not exist for featureName ${featureName}. Creating an entry for it`
-          );
-
-          const updatedUserProfile = await UserPermissions.updateOne(
+      if (_.isEmpty(existingUserProfile)) {
+        console.log(
+          `UserProfile for input email ${email} is not present, create a new userProfile`
+        );
+        const userProfile = await UserPermissions.create({
+          email: email,
+          permissions: [
             {
-              email: email,
+              featureName: featureName,
+              canAccess: enable,
             },
-            {
-              $addToSet: {
-                permissions: {
-                  featureName: featureName,
-                  canAccess: enable,
+          ],
+        });
+      } else {
+        console.log(
+          `userProfile for input email is present, examining associated permissions`
+        );
+
+        const existingUserPermissions = existingUserProfile.permissions.map(
+          (permission) => permission.featureName
+        );
+        console.log(
+          `existingUserPermissions: ${JSON.stringify(
+            existingUserPermissions,
+            null,
+            2
+          )}`
+        );
+
+        for (let i = 0; i < existingUserPermissions.length; ++i) {
+          if (!existingUserPermissions.includes(featureName)) {
+            console.log(
+              `Permission does not exist for featureName ${featureName}. Creating an entry for it`
+            );
+
+            const updatedUserProfile = await UserPermissions.updateOne(
+              {
+                email: email,
+              },
+              {
+                $addToSet: {
+                  permissions: {
+                    featureName: featureName,
+                    canAccess: enable,
+                  },
                 },
+              }
+            );
+          } else {
+            console.log(
+              `Permission exists for featureName ${featureName}. Updating its canAccess field`
+            );
+            const updatedUserProfile = await UserPermissions.updateOne(
+              {
+                email: email,
+                "permissions.featureName": featureName,
               },
-            }
-          );
-        } else {
-          console.log(
-            `Permission exists for featureName ${featureName}. Updating its canAccess field`
-          );
-          const updatedUserProfile = await UserPermissions.updateOne(
-            {
-              email: email,
-              "permissions.featureName": featureName,
-            },
-            {
-              $set: {
-                "permissions.$.canAccess": enable,
-              },
-            }
-          );
+              {
+                $set: {
+                  "permissions.$.canAccess": enable,
+                },
+              }
+            );
+          }
         }
       }
-    }
 
-    return res.status(200).json({
-      message: `Successfully updated permission for "${featureName}" for "${email}"`,
-    });
+      return res.status(200).json({});
+    } catch (err) {
+      // Triggers if attempt to update failed
+      return res.status(304).json({});
+    }
   }
 );
 

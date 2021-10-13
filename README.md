@@ -8,7 +8,7 @@ Using a series of API calls, change the access permission of an email address (t
 
 # Possible queries:
 1.  Check the existing permission for a feature name associated with an email address 
-    Pass in "email" and "featureName" as query strings
+    Pass in "email" and "featureName" as request parameters
     ### Postman input
     GET req url:
     http://localhost:5000/feature?email=yihfoo@gmail.com&featureName=sidePage
