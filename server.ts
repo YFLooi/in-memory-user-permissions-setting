@@ -1,8 +1,13 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { body } from "express-validator";
-
-const express = require("express");
-const bodyParser = require("body-parser");
+import mongoose from "mongoose";
+import { constructMongoConnection } from "./src/server.config";
+import express from "express";
+import bodyParser from "body-parser";
+import UserPermissions, {
+  IUserPermissions,
+} from "./src/user-permissions.model";
+import _ from "lodash";
 
 const server = express();
 const port = 5000;
@@ -10,8 +15,23 @@ const port = 5000;
 server.use(bodyParser.json());
 server.use(bodyParser.urlencoded({ extended: true }));
 
+// const CompaniesModel = require("./companiesSchema");
+// const constructMongoConnection = require("./backend/config/server.config.js");
+
+// Connecting to database
+const mongoConnectionString = constructMongoConnection();
+mongoose.Promise = global.Promise;
+
+mongoose.connect(mongoConnectionString, {}, function (error) {
+  if (error) {
+    console.log("Error!" + error);
+  } else {
+    console.log("Connected to MongoDB Atlas database");
+  }
+});
+
 /**
- * Sample entry:
+ * Sample document in db:
  * {
  *    email: "yihfoo@gmail.com"
  *    permissions: [
@@ -20,15 +40,11 @@ server.use(bodyParser.urlencoded({ extended: true }));
  *    ]
  * }
  */
-const userPermissions: {
-  email: string;
-  permissions: { featureName: string; canAccess: boolean }[];
-}[] = [];
-
 // Sample call: http://localhost:5000/feature?email=xxx&featureName=yyy
 server.get(`/feature`, async (req: Request, res: Response) => {
-  const email = req.query.email;
-  const featureName = req.query.featureName;
+  const queryParam: any = req.query;
+  const email = queryParam.email;
+  const featureName = queryParam.featureName;
 
   console.log(
     `Call made to get permissions for /feature. Queries passed in:\nemail: "${email}"\nfeatureName: "${featureName}"`
@@ -37,14 +53,17 @@ server.get(`/feature`, async (req: Request, res: Response) => {
     `Attempting to find user profile and associated permissions for ${email}`
   );
 
+  const userProfile = await UserPermissions.findOne({
+    email: email,
+  });
+  const userPermissions = _.isEmpty(userProfile?.permissions)
+    ? []
+    : userProfile.permissions;
+
   let canAccess = null;
-  for (const user of userPermissions) {
-    if (user.email == email) {
-      for (const permission of user.permissions) {
-        if (permission.featureName == featureName) {
-          canAccess = permission.canAccess;
-        }
-      }
+  for (const permission of userPermissions) {
+    if (permission.featureName == featureName) {
+      canAccess = permission.canAccess;
     }
   }
 
@@ -72,12 +91,14 @@ server.post(
       enable == "${enable}"\n`
     );
 
-    const existingEmails = userPermissions.map((user) => {
-      return user.email;
+    const existingUserProfile = await UserPermissions.findOne({
+      email: email,
     });
-    if (!existingEmails.includes(email)) {
-      console.log(`Input email is not present, create a new entry`);
-      userPermissions.push({
+    if (_.isEmpty(existingUserProfile)) {
+      console.log(
+        `UserProfile for input email ${email} is not present, create a new userProfile`
+      );
+      const userProfile = await UserPermissions.create({
         email: email,
         permissions: [
           {
@@ -87,42 +108,61 @@ server.post(
         ],
       });
     } else {
-      console.log(`Input email is present, examining associated permissions`);
+      console.log(
+        `userProfile for input email is present, examining associated permissions`
+      );
 
-      for (let i = 0; i < userPermissions.length; ++i) {
-        if (userPermissions[i].email == email) {
-          const existingPermissions = userPermissions[i].permissions.map(
-            (user) => {
-              return user.featureName;
-            }
+      const existingUserPermissions = existingUserProfile.permissions.map(
+        (permission) => permission.featureName
+      );
+      console.log(
+        `existingUserPermissions: ${JSON.stringify(
+          existingUserPermissions,
+          null,
+          2
+        )}`
+      );
+
+      for (let i = 0; i < existingUserPermissions.length; ++i) {
+        if (!existingUserPermissions.includes(featureName)) {
+          console.log(
+            `Permission does not exist for featureName ${featureName}. Creating an entry for it`
           );
 
-          if (!existingPermissions.includes(featureName)) {
-            console.log(
-              `Permission does not exist for featureName ${featureName}. Craeting an entry for it`
-            );
-            userPermissions[i].permissions.push({
-              featureName: featureName,
-              canAccess: enable,
-            });
-          } else {
-            console.log(
-              `Permission exists for featureName ${featureName}. Updating its canAccess field`
-            );
-            for (let j = 0; j < userPermissions[i].permissions.length; ++j) {
-              if (
-                userPermissions[i].permissions[j].featureName == featureName
-              ) {
-                userPermissions[i].permissions[j].canAccess = enable;
-              }
+          const updatedUserProfile = await UserPermissions.updateOne(
+            {
+              email: email,
+            },
+            {
+              $addToSet: {
+                permissions: {
+                  featureName: featureName,
+                  canAccess: enable,
+                },
+              },
             }
-          }
+          );
+        } else {
+          console.log(
+            `Permission exists for featureName ${featureName}. Updating its canAccess field`
+          );
+          const updatedUserProfile = await UserPermissions.updateOne(
+            {
+              email: email,
+              "permissions.featureName": featureName,
+            },
+            {
+              $set: {
+                "permissions.$.canAccess": enable,
+              },
+            }
+          );
         }
       }
     }
 
     return res.status(200).json({
-      message: `Successfully updated permission for ${featureName} for ${email}`,
+      message: `Successfully updated permission for "${featureName}" for "${email}"`,
     });
   }
 );

@@ -35,16 +35,36 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var express_validator_1 = require("express-validator");
-var express = require("express");
-var bodyParser = require("body-parser");
-var server = express();
+var mongoose_1 = __importDefault(require("mongoose"));
+var server_config_1 = require("./src/server.config");
+var express_1 = __importDefault(require("express"));
+var body_parser_1 = __importDefault(require("body-parser"));
+var user_permissions_model_1 = __importDefault(require("./src/user-permissions.model"));
+var lodash_1 = __importDefault(require("lodash"));
+var server = (0, express_1.default)();
 var port = 5000;
-server.use(bodyParser.json());
-server.use(bodyParser.urlencoded({ extended: true }));
+server.use(body_parser_1.default.json());
+server.use(body_parser_1.default.urlencoded({ extended: true }));
+// const CompaniesModel = require("./companiesSchema");
+// const constructMongoConnection = require("./backend/config/server.config.js");
+// Connecting to database
+var mongoConnectionString = (0, server_config_1.constructMongoConnection)();
+mongoose_1.default.Promise = global.Promise;
+mongoose_1.default.connect(mongoConnectionString, {}, function (error) {
+    if (error) {
+        console.log("Error!" + error);
+    }
+    else {
+        console.log("Connected to MongoDB Atlas database");
+    }
+});
 /**
- * Sample entry:
+ * Sample document in db:
  * {
  *    email: "yihfoo@gmail.com"
  *    permissions: [
@@ -53,86 +73,113 @@ server.use(bodyParser.urlencoded({ extended: true }));
  *    ]
  * }
  */
-var userPermissions = [];
 // Sample call: http://localhost:5000/feature?email=xxx&featureName=yyy
 server.get("/feature", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var email, featureName, canAccess, _i, userPermissions_1, user, _a, _b, permission;
-    return __generator(this, function (_c) {
-        email = req.query.email;
-        featureName = req.query.featureName;
-        console.log("Call made to get permissions for /feature. Queries passed in:\nemail: \"" + email + "\"\nfeatureName: \"" + featureName + "\"");
-        console.log("Attempting to find user profile and associated permissions for " + email);
-        canAccess = null;
-        for (_i = 0, userPermissions_1 = userPermissions; _i < userPermissions_1.length; _i++) {
-            user = userPermissions_1[_i];
-            if (user.email == email) {
-                for (_a = 0, _b = user.permissions; _a < _b.length; _a++) {
-                    permission = _b[_a];
+    var queryParam, email, featureName, userProfile, userPermissions, canAccess, _i, userPermissions_1, permission;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                queryParam = req.query;
+                email = queryParam.email;
+                featureName = queryParam.featureName;
+                console.log("Call made to get permissions for /feature. Queries passed in:\nemail: \"" + email + "\"\nfeatureName: \"" + featureName + "\"");
+                console.log("Attempting to find user profile and associated permissions for " + email);
+                return [4 /*yield*/, user_permissions_model_1.default.findOne({
+                        email: email,
+                    })];
+            case 1:
+                userProfile = _a.sent();
+                userPermissions = lodash_1.default.isEmpty(userProfile === null || userProfile === void 0 ? void 0 : userProfile.permissions)
+                    ? []
+                    : userProfile.permissions;
+                canAccess = null;
+                for (_i = 0, userPermissions_1 = userPermissions; _i < userPermissions_1.length; _i++) {
+                    permission = userPermissions_1[_i];
                     if (permission.featureName == featureName) {
                         canAccess = permission.canAccess;
                     }
                 }
-            }
+                if (canAccess !== null) {
+                    res.status(200).json({ canAccess: canAccess });
+                }
+                else {
+                    res
+                        .status(400)
+                        .json({ message: "Access permission not found for email \"" + email + "\"" });
+                }
+                return [2 /*return*/];
         }
-        if (canAccess !== null) {
-            res.status(200).json({ canAccess: canAccess });
-        }
-        else {
-            res
-                .status(400)
-                .json({ message: "Access permission not found for email \"" + email + "\"" });
-        }
-        return [2 /*return*/];
     });
 }); });
 server.post("/feature", (0, express_validator_1.body)("featureName").isString(), (0, express_validator_1.body)("email").isEmail(), (0, express_validator_1.body)("enable").isBoolean(), function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var _a, featureName, email, enable, existingEmails, i, existingPermissions, j;
+    var _a, featureName, email, enable, existingUserProfile, userProfile, existingUserPermissions, i, updatedUserProfile, updatedUserProfile;
     return __generator(this, function (_b) {
-        _a = req.body, featureName = _a.featureName, email = _a.email, enable = _a.enable;
-        console.log("Request made to set permissions for /feature with\n\n      featureName == \"" + featureName + "\"\n\n      email == \"" + email + "\"\n\n      enable == \"" + enable + "\"\n");
-        existingEmails = userPermissions.map(function (user) {
-            return user.email;
-        });
-        if (!existingEmails.includes(email)) {
-            console.log("Input email is not present, create a new entry");
-            userPermissions.push({
-                email: email,
-                permissions: [
-                    {
-                        featureName: featureName,
-                        canAccess: enable,
-                    },
-                ],
-            });
+        switch (_b.label) {
+            case 0:
+                _a = req.body, featureName = _a.featureName, email = _a.email, enable = _a.enable;
+                console.log("Request made to set permissions for /feature with\n\n      featureName == \"" + featureName + "\"\n\n      email == \"" + email + "\"\n\n      enable == \"" + enable + "\"\n");
+                return [4 /*yield*/, user_permissions_model_1.default.findOne({
+                        email: email,
+                    })];
+            case 1:
+                existingUserProfile = _b.sent();
+                if (!lodash_1.default.isEmpty(existingUserProfile)) return [3 /*break*/, 3];
+                console.log("UserProfile for input email " + email + " is not present, create a new userProfile");
+                return [4 /*yield*/, user_permissions_model_1.default.create({
+                        email: email,
+                        permissions: [
+                            {
+                                featureName: featureName,
+                                canAccess: enable,
+                            },
+                        ],
+                    })];
+            case 2:
+                userProfile = _b.sent();
+                return [3 /*break*/, 9];
+            case 3:
+                console.log("userProfile for input email is present, examining associated permissions");
+                existingUserPermissions = existingUserProfile.permissions.map(function (permission) { return permission.featureName; });
+                console.log("existingUserPermissions: " + JSON.stringify(existingUserPermissions, null, 2));
+                i = 0;
+                _b.label = 4;
+            case 4:
+                if (!(i < existingUserPermissions.length)) return [3 /*break*/, 9];
+                if (!!existingUserPermissions.includes(featureName)) return [3 /*break*/, 6];
+                console.log("Permission does not exist for featureName " + featureName + ". Creating an entry for it");
+                return [4 /*yield*/, user_permissions_model_1.default.updateOne({
+                        email: email,
+                    }, {
+                        $addToSet: {
+                            permissions: {
+                                featureName: featureName,
+                                canAccess: enable,
+                            },
+                        },
+                    })];
+            case 5:
+                updatedUserProfile = _b.sent();
+                return [3 /*break*/, 8];
+            case 6:
+                console.log("Permission exists for featureName " + featureName + ". Updating its canAccess field");
+                return [4 /*yield*/, user_permissions_model_1.default.updateOne({
+                        email: email,
+                        "permissions.featureName": featureName,
+                    }, {
+                        $set: {
+                            "permissions.$.canAccess": enable,
+                        },
+                    })];
+            case 7:
+                updatedUserProfile = _b.sent();
+                _b.label = 8;
+            case 8:
+                ++i;
+                return [3 /*break*/, 4];
+            case 9: return [2 /*return*/, res.status(200).json({
+                    message: "Successfully updated permission for \"" + featureName + "\" for \"" + email + "\"",
+                })];
         }
-        else {
-            console.log("Input email is present, examining associated permissions");
-            for (i = 0; i < userPermissions.length; ++i) {
-                if (userPermissions[i].email == email) {
-                    existingPermissions = userPermissions[i].permissions.map(function (user) {
-                        return user.featureName;
-                    });
-                    if (!existingPermissions.includes(featureName)) {
-                        console.log("Permission does not exist for featureName " + featureName + ". Craeting an entry for it");
-                        userPermissions[i].permissions.push({
-                            featureName: featureName,
-                            canAccess: enable,
-                        });
-                    }
-                    else {
-                        console.log("Permission exists for featureName " + featureName + ". Updating its canAccess field");
-                        for (j = 0; j < userPermissions[i].permissions.length; ++j) {
-                            if (userPermissions[i].permissions[j].featureName == featureName) {
-                                userPermissions[i].permissions[j].canAccess = enable;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return [2 /*return*/, res.status(200).json({
-                message: "Successfully updated permission for " + featureName + " for " + email,
-            })];
     });
 }); });
 server.listen(port, function () {
