@@ -70,9 +70,9 @@ server.get(`/feature`, async (req: Request, res: Response) => {
   if (canAccess !== null) {
     res.status(200).json({ canAccess: canAccess });
   } else {
-    res
-      .status(400)
-      .json({ message: `Access permission not found for email "${email}"` });
+    res.status(400).json({
+      message: `Access permission not found for email="${email}" with featureName="${featureName}"`,
+    });
   }
 });
 
