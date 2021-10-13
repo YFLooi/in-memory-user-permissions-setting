@@ -13,5 +13,3 @@ export function constructMongoConnection(
 ) {
   return `mongodb+srv://${dbUserName}:${dbPassword}@sandbox.9xeet.mongodb.net/${dbName}?retryWrites=true&w=majority`;
 }
-
-// module.exports = { constructMongoConnection };

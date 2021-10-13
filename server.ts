@@ -1,12 +1,10 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import { body } from "express-validator";
 import mongoose from "mongoose";
 import { constructMongoConnection } from "./src/server.config";
 import express from "express";
 import bodyParser from "body-parser";
-import UserPermissions, {
-  IUserPermissions,
-} from "./src/user-permissions.model";
+import UserPermissions from "./src/user-permissions.model";
 import _ from "lodash";
 
 const server = express();
@@ -14,9 +12,6 @@ const port = 5000;
 
 server.use(bodyParser.json());
 server.use(bodyParser.urlencoded({ extended: true }));
-
-// const CompaniesModel = require("./companiesSchema");
-// const constructMongoConnection = require("./backend/config/server.config.js");
 
 // Connecting to database
 const mongoConnectionString = constructMongoConnection();
